@@ -1,5 +1,5 @@
 <div align="center">
-<h1>Google Photos Downloader <a href=""><img alt="npm" src="https://img.shields.io/github/package-json/v/vikas5914/google-photos-downloader/master"></a></h1>
+<h1>Google Photos Backup <a href=""><img alt="npm" src="https://img.shields.io/github/package-json/v/vikas5914/google-photos-backup/master"></a></h1>
 </div>
 
 # Why?
@@ -20,7 +20,7 @@ To get started with this project, follow these steps:
 
 ### Clone the repository:
 ```bash
-git clone https://github.com/vikas5914/google-photos-downloader
+git clone https://github.com/vikas5914/google-photos-backup
 ```
 
 ### Install dependencies:
