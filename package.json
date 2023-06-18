@@ -1,0 +1,32 @@
+{
+  "name": "google-photos-downloader",
+  "version": "1.0.0",
+  "description": "Download photos from Google Photos using Playwright",
+  "repository": "vikas5914/google-photos-downloader",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {},
+  "author": {
+    "name": "Vikas Kapadiya",
+    "email": "vikas@kapadiya.net",
+    "url": "https://kapadiya.net"
+  },
+  "license": "MIT",
+  "keywords": [
+    "google",
+    "photos",
+    "downloader",
+    "playwright",
+    "download",
+    "photo"
+  ],
+  "dependencies": {
+    "exif-reader": "^1.2.0",
+    "move-file": "^3.1.0",
+    "playwright": "^1.35.1",
+    "sharp": "^0.32.1"
+  },
+  "devDependencies": {
+    "standard": "^17.0.0"
+  }
+}
