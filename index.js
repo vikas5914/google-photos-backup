@@ -8,6 +8,13 @@ import exif from 'exif-reader'
 const userDataDir = './session'
 const downloadPath = './download'
 
+let headless = true
+
+// accept --headless=false argument to run in headful mode
+if (process.argv[2] === '--headless=false') {
+  headless = false
+}
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const getProgress = async () => {
@@ -27,10 +34,10 @@ const saveProgress = async (page) => {
 
 (async () => {
   const startLink = await getProgress()
-  console.log('Starting from:', startLink)
+  console.log('Starting from:', new URL(startLink).href)
 
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
-    headless: false,
+    headless,
     acceptDownloads: true,
     javaScriptEnabled: true
   })
@@ -90,7 +97,9 @@ const downloadPhoto = async (page, overwrite = false) => {
   const metadata = await sharp(temp).metadata()
   const exifdata = exif(metadata.exif)
 
-  const date = new Date(exifdata.exif.DateTimeOriginal)
+  const dateString = exifdata.exif?.DateTimeOriginal || null
+
+  const date = new Date(dateString)
   const year = date.getFullYear()
   const month = date.getMonth() + 1
 
