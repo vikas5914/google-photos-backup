@@ -103,7 +103,8 @@ const downloadPhoto = async (page, overwrite = false) => {
     await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`, { overwrite })
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
   } catch (error) {
-    const fileName = await download.suggestedFilename().replaceAll('.', '(1).') // add (1) before the extension
+    const randomNumber = Math.floor(Math.random() * 1000000)
+    const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
     await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`)
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
   }
