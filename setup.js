@@ -1,15 +1,11 @@
-const { chromium } = require('playwright')
-const path = require('path')
+import { chromium } from 'playwright'
+import path from 'path'
 
-const userDataDir = './session'
-const downloadsPath = './downloads';
+const userDataDir = './session';
 
 (async () => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
-    headless: false,
-    acceptDownloads: true,
-    javaScriptEnabled: true,
-    downloadsPath: path.resolve(downloadsPath)
+    headless: false
   })
   const page = await browser.newPage()
   await page.goto('https://photos.google.com/')
