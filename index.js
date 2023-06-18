@@ -2,8 +2,7 @@ import { chromium } from 'playwright'
 import path from 'path'
 import { moveFile } from 'move-file'
 import fsP from 'node:fs/promises'
-import sharp from 'sharp'
-import exif from 'exif-reader'
+import { exiftool } from 'exiftool-vendored'
 
 const userDataDir = './session'
 const downloadPath = './download'
@@ -82,6 +81,7 @@ const saveProgress = async (page) => {
     await saveProgress(page)
   }
   await browser.close()
+  await exiftool.end()
 })()
 
 const downloadPhoto = async (page, overwrite = false) => {
@@ -94,14 +94,10 @@ const downloadPhoto = async (page, overwrite = false) => {
   const temp = await download.path()
   const fileName = await download.suggestedFilename()
 
-  const metadata = await sharp(temp).metadata()
-  const exifdata = exif(metadata.exif)
+  const metadata = await exiftool.read(temp)
 
-  const dateString = exifdata.exif?.DateTimeOriginal || null
-
-  const date = new Date(dateString)
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
+  const year = metadata.DateTimeOriginal?.year || 1970
+  const month = metadata.DateTimeOriginal?.month || 1
 
   try {
     await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`, { overwrite })
