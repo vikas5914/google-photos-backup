@@ -1,6 +1,6 @@
 {
   "name": "google-photos-backup",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Download photos from Google Photos using Playwright",
   "repository": "vikas5914/google-photos-backup",
   "main": "index.js",
@@ -23,7 +23,10 @@
   "dependencies": {
     "exiftool-vendored": "^22.0.0",
     "move-file": "^3.1.0",
-    "playwright": "^1.35.1"
+    "pino": "^8.14.1",
+    "playwright": "^1.35.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "standard": "^17.0.0"

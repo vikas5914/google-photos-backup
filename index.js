@@ -1,8 +1,11 @@
-import { chromium } from 'playwright'
+import { chromium } from 'playwright-extra'
+import stealth from 'puppeteer-extra-plugin-stealth'
 import path from 'path'
 import { moveFile } from 'move-file'
 import fsP from 'node:fs/promises'
 import { exiftool } from 'exiftool-vendored'
+
+chromium.use(stealth())
 
 const userDataDir = './session'
 const downloadPath = './download'
@@ -38,7 +41,7 @@ const saveProgress = async (page) => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
     headless,
     acceptDownloads: true,
-    javaScriptEnabled: true
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
 
   const page = await browser.newPage()
@@ -96,8 +99,25 @@ const downloadPhoto = async (page, overwrite = false) => {
 
   const metadata = await exiftool.read(temp)
 
-  const year = metadata.DateTimeOriginal?.year || 1970
-  const month = metadata.DateTimeOriginal?.month || 1
+  let year = metadata.DateTimeOriginal?.year || 1970
+  let month = metadata.DateTimeOriginal?.month || 1
+
+  if (year === 1970 && month === 1) {
+    // if metadata is not available, we try to get the date from the html
+    console.log('Metadata not found, trying to get date from html')
+    const data = await page.request.get(page.url())
+    const html = await data.text()
+
+    const regex = /aria-label="Photo - ([^"]+)"/
+    const match = regex.exec(html)
+
+    if (match) {
+      const dateString = match[1]
+      const date = new Date(dateString)
+      year = date.getFullYear()
+      month = date.getMonth() + 1
+    }
+  }
 
   try {
     await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`, { overwrite })

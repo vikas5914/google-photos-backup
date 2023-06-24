@@ -1,11 +1,15 @@
-import { chromium } from 'playwright'
 import path from 'path'
+import { chromium } from 'playwright-extra'
+import stealth from 'puppeteer-extra-plugin-stealth'
+
+chromium.use(stealth())
 
 const userDataDir = './session';
 
 (async () => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
-    headless: false
+    headless: false,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
   const page = await browser.newPage()
   await page.goto('https://photos.google.com/')
