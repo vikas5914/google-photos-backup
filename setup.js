@@ -9,6 +9,7 @@ const userDataDir = './session';
 (async () => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
     headless: false,
+    channel: 'chrome', // possible values: chrome, msedge and chromium
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
   const page = await browser.newPage()

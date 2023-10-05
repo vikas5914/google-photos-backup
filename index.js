@@ -41,6 +41,7 @@ const saveProgress = async (page) => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
     headless,
     acceptDownloads: true,
+    channel: 'chromium', // possible values: chrome, msedge and chromium
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
 
@@ -88,12 +89,21 @@ const saveProgress = async (page) => {
 })()
 
 const downloadPhoto = async (page, overwrite = false) => {
-  const downloadPromise = page.waitForEvent('download')
+  const downloadPromise = page.waitForEvent('download', {
+    timeout: 30000
+  })
 
   await page.keyboard.down('Shift')
   await page.keyboard.press('KeyD')
 
-  const download = await downloadPromise
+  let download
+  try {
+    download = await downloadPromise
+  } catch (error) {
+    console.log('There was an error while downloading the photo, Skipping...', page.url())
+    return
+  }
+
   const temp = await download.path()
   const fileName = await download.suggestedFilename()
 
@@ -108,7 +118,7 @@ const downloadPhoto = async (page, overwrite = false) => {
     const data = await page.request.get(page.url())
     const html = await data.text()
 
-    const regex = /aria-label="Photo - ([^"]+)"/
+    const regex = /aria-label="(Photo . Landscape|Photo . Portrait|Video . Landscape|Video . Portrait|Video|Photo) . ([^"]+)"/
     const match = regex.exec(html)
 
     if (match) {
