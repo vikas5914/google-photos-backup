@@ -41,7 +41,7 @@ const saveProgress = async (page) => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
     headless,
     acceptDownloads: true,
-    channel: 'chromium', // possible values: chrome, msedge and chromium
+    channel: 'chrome', // possible values: chrome, msedge and chromium
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
 

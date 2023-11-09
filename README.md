@@ -26,7 +26,7 @@ git clone https://github.com/vikas5914/google-photos-backup
 ### Install dependencies:
 ```bash
 npm install
-npx playwright install --with-deps chromium
+npx playwright install --with-deps chrome
 ```
 
 ### Setup login session:
@@ -35,7 +35,7 @@ npx playwright install --with-deps chromium
 node setup.js
 ```
 
-This will open a Chromium browser and ask you to log in to your Google Photos account. After logging in, either press ctrl+c or close the browser. This will save your login session in the `session` folder.
+This will open a Chrome browser and ask you to log in to your Google Photos account. After logging in, either press ctrl+c or close the browser. This will save your login session in the `session` folder.
 
 ### Create .lastdone file:
 
