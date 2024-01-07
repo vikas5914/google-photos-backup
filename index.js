@@ -30,8 +30,13 @@ const getProgress = async () => {
 }
 
 const saveProgress = async (page) => {
-  const currentUrl = await page.url()
-  await fsP.writeFile('.lastdone', currentUrl, 'utf-8')
+  const currentUrl = await page.url();
+  // Only save if the URL is a valid Google Photos URL 'https://photos.google.com'
+  if (currentUrl.startsWith('https://photos.google.com')) {
+    await fsP.writeFile('.lastdone', currentUrl, 'utf-8');
+  } else {
+    console.log('Current URL does not start with https://photos.google.com, not saving progress.');
+  }
 }
 
 (async () => {
