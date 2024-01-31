@@ -7,6 +7,7 @@ import { exiftool } from 'exiftool-vendored'
 
 chromium.use(stealth())
 
+const timeoutValue = 30000
 const userDataDir = './session'
 const downloadPath = './download'
 
@@ -84,6 +85,9 @@ const saveProgress = async (page) => {
     // we wait until new photo is loaded
     await page.waitForURL((url) => {
       return url.host === 'photos.google.com' && url.href !== currentUrl
+    },
+    {
+      timeout: timeoutValue,
     })
 
     await downloadPhoto(page)
@@ -95,7 +99,7 @@ const saveProgress = async (page) => {
 
 const downloadPhoto = async (page, overwrite = false) => {
   const downloadPromise = page.waitForEvent('download', {
-    timeout: 30000
+    timeout: timeoutValue
   })
 
   await page.keyboard.down('Shift')
