@@ -7,8 +7,9 @@ import { exiftool } from 'exiftool-vendored'
 
 chromium.use(stealth())
 
+const timeoutValue = 300000
+const downloadPath = '/mnt/hgfs/Google-Photos'
 const userDataDir = './session'
-const downloadPath = './download'
 
 let headless = true
 
@@ -84,6 +85,9 @@ const saveProgress = async (page) => {
     // we wait until new photo is loaded
     await page.waitForURL((url) => {
       return url.host === 'photos.google.com' && url.href !== currentUrl
+    },
+    {
+        timeout: timeoutValue,
     })
 
     await downloadPhoto(page)
@@ -95,7 +99,7 @@ const saveProgress = async (page) => {
 
 const downloadPhoto = async (page, overwrite = false) => {
   const downloadPromise = page.waitForEvent('download', {
-    timeout: 30000
+    timeout: timeoutValue
   })
 
   await page.keyboard.down('Shift')
@@ -140,9 +144,28 @@ const downloadPhoto = async (page, overwrite = false) => {
   } catch (error) {
     const randomNumber = Math.floor(Math.random() * 1000000)
     const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`)
-    console.log('Download Complete:', `${year}/${month}/${fileName}`)
+    
+    var downloadFilePath = `${downloadPath}/${year}/${month}/${fileName}`
+    
+    // check for long paths that could result in ENAMETOOLONG and truncate if necessary
+    if (downloadFilePath.length > 225) {
+      downloadFilePath = truncatePath(downloadFilePath)    }
+    
+    await moveFile(temp, `${downloadFilePath}`)
+    console.log('Download Complete:', `${downloadFilePath}`)
   }
+}
+
+/*
+  This function truncates the filename (retaining the file extension) to avoid ENAMETOOLONG errors with long filenames
+*/
+function truncatePath(pathString){
+    const pathStringSplit = pathString.split(".");
+    var fileExtension = pathStringSplit[pathStringSplit.length-1];
+    var fileExtensionLength = fileExtension.length+1;
+    var truncatedPath = pathString.substring(0, 225-fileExtensionLength) + "." + fileExtension;
+    
+    return truncatedPath;
 }
 
 /*
