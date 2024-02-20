@@ -7,7 +7,7 @@ import { exiftool } from 'exiftool-vendored'
 
 chromium.use(stealth())
 
-const timeoutValue = 300000
+const timeoutValue = 30000
 const userDataDir = './session'
 const downloadPath = './download'
 
