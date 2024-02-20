@@ -8,8 +8,8 @@ import { exiftool } from 'exiftool-vendored'
 chromium.use(stealth())
 
 const timeoutValue = 300000
-const downloadPath = './download'
 const userDataDir = './session'
+const downloadPath = './download'
 
 let headless = true
 
