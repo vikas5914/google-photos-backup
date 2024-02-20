@@ -8,7 +8,7 @@ import { exiftool } from 'exiftool-vendored'
 chromium.use(stealth())
 
 const timeoutValue = 300000
-const downloadPath = '/mnt/hgfs/Google-Photos'
+const downloadPath = './download'
 const userDataDir = './session'
 
 let headless = true
