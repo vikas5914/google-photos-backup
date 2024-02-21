@@ -3,7 +3,9 @@ import stealth from 'puppeteer-extra-plugin-stealth'
 import path from 'path'
 import { moveFile } from 'move-file'
 import fsP from 'node:fs/promises'
+import fs from 'node:fs'
 import { exiftool } from 'exiftool-vendored'
+
 
 chromium.use(stealth())
 
@@ -86,9 +88,9 @@ const saveProgress = async (page) => {
     await page.waitForURL((url) => {
       return url.host === 'photos.google.com' && url.href !== currentUrl
     },
-    {
+      {
         timeout: timeoutValue,
-    })
+      })
 
     await downloadPhoto(page)
     await saveProgress(page)
@@ -139,18 +141,23 @@ const downloadPhoto = async (page, overwrite = false) => {
   }
 
   try {
-    await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`, { overwrite })
+    let path = `${downloadPath}/${year}/${month}/${fileName}`
+    path = validatePath(path)
+
+
+    await moveFile(temp, path, { overwrite })
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
   } catch (error) {
     const randomNumber = Math.floor(Math.random() * 1000000)
     const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    
-    var downloadFilePath = `${downloadPath}/${year}/${month}/${fileName}`
-    
+
+    var downloadFilePath = path
+
     // check for long paths that could result in ENAMETOOLONG and truncate if necessary
     if (downloadFilePath.length > 225) {
-      downloadFilePath = truncatePath(downloadFilePath)    }
-    
+      downloadFilePath = truncatePath(downloadFilePath)
+    }
+
     await moveFile(temp, `${downloadFilePath}`)
     console.log('Download Complete:', `${downloadFilePath}`)
   }
@@ -159,13 +166,34 @@ const downloadPhoto = async (page, overwrite = false) => {
 /*
   This function truncates the filename (retaining the file extension) to avoid ENAMETOOLONG errors with long filenames
 */
-function truncatePath(pathString){
-    const pathStringSplit = pathString.split(".");
-    var fileExtension = pathStringSplit[pathStringSplit.length-1];
-    var fileExtensionLength = fileExtension.length+1;
-    var truncatedPath = pathString.substring(0, 225-fileExtensionLength) + "." + fileExtension;
-    
-    return truncatedPath;
+function truncatePath(pathString) {
+  const pathStringSplit = pathString.split(".");
+  var fileExtension = pathStringSplit[pathStringSplit.length - 1];
+  var fileExtensionLength = fileExtension.length + 1;
+  var truncatedPath = pathString.substring(0, 225 - fileExtensionLength) + "." + fileExtension;
+
+  return truncatedPath;
+}
+
+/*
+  This function exists to avoid accidental file overwrites. 
+  It checks if the path exists and if it does, we append a number- eg: _1 and set that as the new path
+  while the new path exists, we increment the number
+  when the path doesnt exist, we return the new path string.
+*/
+function validatePath(pathString) {
+  let newPath = pathString;
+  let counter = 1;
+
+  while (fs.existsSync(newPath)) {
+    const extensionIndex = newPath.lastIndexOf(".");
+    const newPathWithoutExt = extensionIndex === -1 ? newPath : newPath.slice(0, extensionIndex);
+    const extension = extensionIndex === -1 ? "" : newPath.slice(extensionIndex);
+    newPath = `${newPathWithoutExt}_${counter}${extension}`;
+    counter++;
+  }
+
+  return newPath;
 }
 
 /*
