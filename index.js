@@ -8,8 +8,8 @@ import { exiftool } from 'exiftool-vendored'
 chromium.use(stealth())
 
 const timeoutValue = 30000
-const userDataDir = './session'
-const downloadPath = './download'
+const userDataDir = '/data/session'
+const downloadPath = '/data/download'
 
 let headless = true
 
@@ -22,7 +22,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const getProgress = async () => {
   try {
-    const lastDone = await fsP.readFile('.lastdone', 'utf-8')
+    const lastDone = await fsP.readFile('/data/.lastdone', 'utf-8')
     if (lastDone === '') throw new Error('Please add the starting link in .lastdone file')
     return lastDone
   } catch (error) {
@@ -34,7 +34,7 @@ const saveProgress = async (page) => {
   const currentUrl = await page.url();
   // Only save if the URL is a valid Google Photos URL 'https://photos.google.com'
   if (currentUrl.startsWith('https://photos.google.com')) {
-    await fsP.writeFile('.lastdone', currentUrl, 'utf-8');
+    await fsP.writeFile('/data/.lastdone', currentUrl, 'utf-8');
   } else {
     console.log('Current URL does not start with https://photos.google.com, not saving progress.');
   }
@@ -86,9 +86,9 @@ const saveProgress = async (page) => {
     await page.waitForURL((url) => {
       return url.host === 'photos.google.com' && url.href !== currentUrl
     },
-    {
+      {
         timeout: timeoutValue,
-    })
+      })
 
     await downloadPhoto(page)
     await saveProgress(page)
@@ -144,13 +144,14 @@ const downloadPhoto = async (page, overwrite = false) => {
   } catch (error) {
     const randomNumber = Math.floor(Math.random() * 1000000)
     const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    
+
     var downloadFilePath = `${downloadPath}/${year}/${month}/${fileName}`
-    
+
     // check for long paths that could result in ENAMETOOLONG and truncate if necessary
     if (downloadFilePath.length > 225) {
-      downloadFilePath = truncatePath(downloadFilePath)    }
-    
+      downloadFilePath = truncatePath(downloadFilePath)
+    }
+
     await moveFile(temp, `${downloadFilePath}`)
     console.log('Download Complete:', `${downloadFilePath}`)
   }
@@ -159,13 +160,13 @@ const downloadPhoto = async (page, overwrite = false) => {
 /*
   This function truncates the filename (retaining the file extension) to avoid ENAMETOOLONG errors with long filenames
 */
-function truncatePath(pathString){
-    const pathStringSplit = pathString.split(".");
-    var fileExtension = pathStringSplit[pathStringSplit.length-1];
-    var fileExtensionLength = fileExtension.length+1;
-    var truncatedPath = pathString.substring(0, 225-fileExtensionLength) + "." + fileExtension;
-    
-    return truncatedPath;
+function truncatePath(pathString) {
+  const pathStringSplit = pathString.split(".");
+  var fileExtension = pathStringSplit[pathStringSplit.length - 1];
+  var fileExtensionLength = fileExtension.length + 1;
+  var truncatedPath = pathString.substring(0, 225 - fileExtensionLength) + "." + fileExtension;
+
+  return truncatedPath;
 }
 
 /*
