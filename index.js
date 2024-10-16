@@ -7,7 +7,7 @@ import { exiftool } from 'exiftool-vendored'
 
 chromium.use(stealth())
 
-const timeoutValue = 30000
+const timeoutValue = 300000
 const userDataDir = './session'
 const downloadPath = './download'
 
@@ -38,6 +38,39 @@ const saveProgress = async (page) => {
   } else {
     console.log('Current URL does not start with https://photos.google.com, not saving progress.');
   }
+}
+const getMonthAndYear = async (metadata, page) => {
+  let year = 1970
+  let month = 1
+  let dateType = "default"
+  if (metadata.DateTimeOriginal) {
+    year = metadata.DateTimeOriginal.year
+    month = metadata.DateTimeOriginal.month
+    dateType = "DateTimeOriginal"
+  } else if (metadata.CreateDate) {
+    year = metadata.CreateDate.year
+    month = metadata.CreateDate.month
+    dateType = "CreateDate"
+  } else {
+    // if metadata is not available, we try to get the date from the html
+    console.log('Metadata not found, trying to get date from html')
+    const data = await page.request.get(page.url())
+    const html = await data.text()
+
+    const regex = /aria-label="(Photo|Video) - (Landscape|Portrait|Square) - ([A-Za-z]{3} \d{1,2}, \d{4}, \d{1,2}:\d{2}:\d{2} [APM]{2})"/
+    const match = regex.exec(html)
+
+    if (match) {
+      const dateString = match[3].replace(/\u202F/g, ' ') // Remove U+202F character
+      const date = new Date(dateString)
+      if (date.toString() !== 'Invalid Date') {
+        year = date.getFullYear()
+        month = date.getMonth() + 1
+        dateType = "HTML"
+      }
+    }
+  }
+  return { year, month, dateType }
 }
 
 (async () => {
@@ -118,26 +151,9 @@ const downloadPhoto = async (page, overwrite = false) => {
 
   const metadata = await exiftool.read(temp)
 
-  let year = metadata.DateTimeOriginal?.year || 1970
-  let month = metadata.DateTimeOriginal?.month || 1
-
-  if (year === 1970 && month === 1) {
-    // if metadata is not available, we try to get the date from the html
-    console.log('Metadata not found, trying to get date from html')
-    const data = await page.request.get(page.url())
-    const html = await data.text()
-
-    const regex = /aria-label="(Photo . Landscape|Photo . Portrait|Video . Landscape|Video . Portrait|Video|Photo) . ([^"]+)"/
-    const match = regex.exec(html)
-
-    if (match) {
-      const dateString = match[1]
-      const date = new Date(dateString)
-      year = date.getFullYear()
-      month = date.getMonth() + 1
-    }
-  }
-
+  const date = await getMonthAndYear(metadata, page)
+  const year = date.year
+  const month = date.month
   try {
     await moveFile(temp, `${downloadPath}/${year}/${month}/${fileName}`, { overwrite })
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
