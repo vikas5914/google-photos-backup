@@ -26,7 +26,8 @@
     "pino": "^8.14.1",
     "playwright": "^1.35.1",
     "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "user-agents": "^1.1.391"
   },
   "devDependencies": {
     "standard": "^17.0.0"
