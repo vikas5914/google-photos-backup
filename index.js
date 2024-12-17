@@ -82,9 +82,8 @@ const processQueue = async () => {
     const itemsToDownload = downloadQueue.splice(0, 20);
     for (const item of itemsToDownload) {
       const cookieString = item.cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
-      const aria2cCommand = `aria2c --dir="./aria2-downloads" --header "Cookie: ${cookieString}" --header "Referer: ${item.referer}" "${item.url}" --disable-ipv6=true -x 16 -k 1M'`;
+      const aria2cCommand = `aria2c --dir="${downloadPath}" --header "Cookie: ${cookieString}" --header "Referer: ${item.referer}" "${item.url}" --disable-ipv6=true -x 16 -k 1M'`;
       // console.log(`COMMAND: ${aria2cCommand}`);
-
       exec(aria2cCommand, async (error, stdout, stderr) => {
         if (error) {
           console.error(`Error executing aria2c: ${error}`);
