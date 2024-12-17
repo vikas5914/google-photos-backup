@@ -17,8 +17,7 @@ chromium.use(stealth())
 
 const timeoutValue = 300000
 const userDataDir = './session'
-// const downloadPath = './download'
-const downloadPath = './aria2-downloads'
+const downloadPath = './download'
 
 let headless = true
 
@@ -48,7 +47,8 @@ const saveProgress = async (page) => {
     console.log('Current URL does not start with https://photos.google.com, not saving progress.');
   }
 }
-const getMonthAndYear = async (metadata, page) => {
+
+const getMonthAndYear = async (filePath, metadata, page) => {
   let year = 1970
   let month = 1
   let dateType = "default"
@@ -62,33 +62,88 @@ const getMonthAndYear = async (metadata, page) => {
     dateType = "CreateDate"
   } else {
     // if metadata is not available, we try to get the date from the html
-    console.log('Metadata not found, trying to get date from html')
-    const data = await page.request.get(page.url())
-    const html = await data.text()
-
-    const regex = /aria-label="(Photo|Video) - (Landscape|Portrait|Square) - ([A-Za-z]{3} \d{1,2}, \d{4}, \d{1,2}:\d{2}:\d{2} [APM]{2})"/
-    const match = regex.exec(html)
-
-    if (match) {
-      const dateString = match[3].replace(/\u202F/g, ' ') // Remove U+202F character
-      const date = new Date(dateString)
-      if (date.toString() !== 'Invalid Date') {
-        year = date.getFullYear()
-        month = date.getMonth() + 1
-        dateType = "HTML"
-      }
+    const dateString = await page.$eval('div[aria-label^="Date taken:"]', el => el.textContent.trim())
+    console.log(`Metadata not found for in exif of ${filePath.split('/').pop()}, so getting from html: ${dateString}`)
+    const date = new Date(dateString)
+    if (date.toString() !== 'Invalid Date') {
+      year = date.getFullYear()
+      month = date.getMonth() + 1
+      dateType = "HTML"
     }
   }
   return { year, month, dateType }
 }
 
-const printAria2cCommand = (url, cookies) => {
-  const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
-  console.log(`aria2c --header "Cookie: ${cookieString}" "${url}" --disable-ipv6=true --dry-run`);
+let FILE_PATH = ''
+const downloadQueue = [];
+
+const processQueue = async () => {
+  while (downloadQueue.length > 0) {
+    const itemsToDownload = downloadQueue.splice(0, 20);
+    for (const item of itemsToDownload) {
+      const cookieString = item.cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+      const aria2cCommand = `aria2c --dir="./aria2-downloads" --header "Cookie: ${cookieString}" --header "Referer: ${item.referer}" "${item.url}" --disable-ipv6=true -x 16 -k 1M'`;
+      // console.log(`COMMAND: ${aria2cCommand}`);
+
+      exec(aria2cCommand, async (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error executing aria2c: ${error}`);
+          return;
+        }
+
+        FILE_PATH = stdout.match(/Download complete: (.*)/)?.[1]?.trim();
+
+        if (stderr) {
+          console.error(`aria2c stderr: ${stderr}`);
+        }
+
+        // Move the downloaded file to the respective date folder
+        const filePath = FILE_PATH
+        if (!fs.existsSync(filePath)) {
+          console.log(`File does not exist: ${filePath}`);
+          return;
+        }
+        if (!fs.existsSync(filePath)) {
+          console.log(`File does not exist: ${filePath}`);
+          return;
+        }
+        let metadata;
+        if (fs.existsSync(filePath)) {
+          metadata = await exiftool.read(filePath);
+        }
+        const date = await getMonthAndYear(filePath, metadata, item.page);
+        const year = date.year;
+        const month = date.month;
+        try {
+          let newPath = `${downloadPath}/${year}/${month}/${filePath.split('/').pop()}`;
+          newPath = validatePath(newPath);
+          await moveFile(filePath, newPath, { overwrite: true });
+          console.log('Download Complete:', `${year}/${month}/${filePath.split('/').pop()}`);
+        } catch (error) {
+          const randomNumber = Math.floor(Math.random() * 1000000);
+          let newPath = filePath.replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`);
+
+          // check for long paths that could result in ENAMETOOLONG and truncate if necessary
+          if (newPath.length > 225) {
+            newPath = truncatePath(newPath)
+          }
+
+          await moveFile(filePath, newPath);
+          console.log('Download Complete:', newPath);
+        }
+      });
+    }
+    await sleep(1000); // Add a delay to avoid overwhelming the system
+  }
+}
+
+const addToQueue = async (url, cookies, referer, page) => {
+  downloadQueue.push({ url, cookies, referer, page });
+  await processQueue();
 }
 
 (async () => {
-  const startLink = await getProgress() 
+  const startLink = await getProgress()
   console.log('Starting from:', new URL(startLink).href)
 
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
@@ -97,7 +152,7 @@ const printAria2cCommand = (url, cookies) => {
     acceptDownloads: true,
     args: [
       '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-blink-features=AutomationControlled', 
+      '--disable-blink-features=AutomationControlled',
       '--no-sandbox',         // May help in some environments
       '--disable-infobars',    // Prevent infobars
       '--disable-extensions',   // Disable extensions
@@ -125,6 +180,7 @@ const printAria2cCommand = (url, cookies) => {
   await downloadPhoto(page, true)
 
   while (true) {
+    await sleep(100)
     const currentUrl = await page.url()
 
     if (clean(currentUrl) === clean(latestPhoto)) {
@@ -141,12 +197,28 @@ const printAria2cCommand = (url, cookies) => {
     await page.evaluate(() => document.getElementsByClassName('SxgK2b OQEhnd')[0].click())
 
     // we wait until new photo is loaded
-    await page.waitForURL((url) => {
-      return url.host === 'photos.google.com' && url.href !== currentUrl
-    },
-      {
-        timeout: timeoutValue,
-      })
+
+    let retries = 3;
+    const retryInterval = 1000;
+    while (retries > 0) {
+      try {
+        await page.waitForURL((url) => {
+          return url.host === 'photos.google.com' && url.href !== currentUrl;
+        }, {
+          timeout: timeoutValue,
+        });
+        break; // Exit loop if successful
+      } catch (error) {
+        retries--;
+        console.error('Error waiting for URL:', error);
+        if (retries === 0) {
+          throw error;
+        }
+        await sleep(retryInterval);
+        continue;
+      }
+    }
+
 
     await downloadPhoto(page)
     await saveProgress(page)
@@ -160,87 +232,32 @@ const downloadPhoto = async (page, overwrite = false) => {
     timeout: timeoutValue
   })
 
-
   await page.keyboard.down('Shift')
   await page.keyboard.press('KeyD')
-  let filePath = '';
 
-
-  const downloadUsingAria2Promise = new Promise((resolve, reject) => {
-    let downloadUrl = '';
-    downloadPromise.then(async download => {
-      downloadUrl = download.url();
-
-      const cookies = await page.context().cookies([downloadUrl]);
-      download.cancel();
-
-      const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
-      const referer = page.url();
-      exec(`aria2c --dir="./aria2-downloads" --header "Cookie: ${cookieString}" --header "Referer: ${referer}" "${downloadUrl}" --disable-ipv6=true | awk '/Download complete:/{print $NF}'`, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error executing aria2c: ${error}`);
-          reject(error);
-          return;
-        }
-
-        console.log(`aria2c output: ${stdout}`);
-        filePath = stdout.trim();
-        
-        if (stderr) {
-          console.error(`aria2c stderr: ${stderr}`);
-        }
-
-        resolve(filePath);
-      });
-    }).catch(error => {
-      console.log('Error while waiting for download:', error);
-      reject(error);
-    });
+  downloadPromise.then(async download => {
+    const downloadUrl = download.url();
+    const cookies = await page.context().cookies([downloadUrl]);
+    download.cancel();
+    const referer = page.url();
+    await addToQueue(downloadUrl, cookies, referer, page);
+  }).catch(error => {
+    console.log('Error while waiting for download:', error);
   });
+}
 
+/*
+  This function is used to get the latest photo in the library. Once Page is loaded,
+  We press right click, It will select the latest photo in the grid. And then
+  we get the active element, which is the latest photo.
+*/
+const getLatestPhoto = async (page) => {
+  await page.keyboard.press('ArrowRight')
+  return await page.evaluate(() => document.activeElement.toString())
+}
 
-  let download
-  try {
-    // download = await downloadPromise
-    await downloadUsingAria2Promise;
-  } catch (error) {
-    console.log(error)
-    console.log('There was an error while downloading the photo, Skipping...', page.url())
-    return
-  }
-
-  const temp = filePath
-  // const fileName = await download.suggestedFilename()
-  const fileName = filePath.split('/').pop()
-
-  // const metadata = await exiftool.read(temp)
-  const metadata = await exiftool.read(filePath)
-
-  const date = await getMonthAndYear(metadata, page)
-  const year = date.year
-  const month = date.month
-  try {
-    let path = `${downloadPath}/${year}/${month}/${fileName}`
-    path = validatePath(path)
-    
-
-    await moveFile(temp, path, { overwrite })
-    console.log('Download Complete:', `${year}/${month}/${fileName}`)
-  } catch (error) {
-    const randomNumber = Math.floor(Math.random() * 1000000)
-    // const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    const fileName = filePath.split('/').pop().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-    var downloadFilePath = path
-
-    // check for long paths that could result in ENAMETOOLONG and truncate if necessary
-    if (downloadFilePath.length > 225) {
-      downloadFilePath = truncatePath(downloadFilePath)
-    }
-
-    await moveFile(temp, `${downloadFilePath}`)
-    console.log('Download Complete:', `${downloadFilePath}`)
-    console.log('Download URL:', download.url())
-  }
+const clean = (link) => {
+  return link.replace(/\/u\/\d+\//, '/')
 }
 
 /*
@@ -274,20 +291,4 @@ function validatePath(pathString) {
   }
 
   return newPath;
-}
-
-/*
-  This function is used to get the latest photo in the library. Once Page is loaded,
-  We press right click, It will select the latest photo in the grid. And then
-  we get the active element, which is the latest photo.
-*/
-const getLatestPhoto = async (page) => {
-  await page.keyboard.press('ArrowRight')
-  await sleep(500)
-  return await page.evaluate(() => document.activeElement.toString())
-}
-
-// remove /u/0/
-const clean = (link) => {
-  return link.replace(/\/u\/\d+\//, '/')
 }
