@@ -15,6 +15,7 @@ const userDataDir = './session';
 (async () => {
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
     headless: false,
+    channel: 'chromium',
     args: [
       '--disable-features=IsolateOrigins,site-per-process',
       '--disable-blink-features=AutomationControlled',

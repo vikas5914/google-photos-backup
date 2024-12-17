@@ -86,6 +86,8 @@ const getMonthAndYear = async (metadata, page) => {
 
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
     headless,
+    channel: 'chromium',
+    acceptDownloads: true,
     args: [
       '--disable-features=IsolateOrigins,site-per-process',
       '--disable-blink-features=AutomationControlled', 
