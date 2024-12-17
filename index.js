@@ -6,6 +6,7 @@ import fsP from 'node:fs/promises'
 import fs from 'node:fs'
 import { exiftool } from 'exiftool-vendored'
 import ua from 'user-agents'
+import { exec } from 'node:child_process'
 
 const userAgent = new ua({
   platform: 'MacIntel', // 'Win32', 'Linux ...'
@@ -16,7 +17,8 @@ chromium.use(stealth())
 
 const timeoutValue = 300000
 const userDataDir = './session'
-const downloadPath = './download'
+// const downloadPath = './download'
+const downloadPath = './aria2-downloads'
 
 let headless = true
 
@@ -80,8 +82,13 @@ const getMonthAndYear = async (metadata, page) => {
   return { year, month, dateType }
 }
 
+const printAria2cCommand = (url, cookies) => {
+  const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+  console.log(`aria2c --header "Cookie: ${cookieString}" "${url}" --disable-ipv6=true --dry-run`);
+}
+
 (async () => {
-  const startLink = await getProgress()
+  const startLink = await getProgress() 
   console.log('Starting from:', new URL(startLink).href)
 
   const browser = await chromium.launchPersistentContext(path.resolve(userDataDir), {
@@ -153,21 +160,61 @@ const downloadPhoto = async (page, overwrite = false) => {
     timeout: timeoutValue
   })
 
+
   await page.keyboard.down('Shift')
   await page.keyboard.press('KeyD')
+  let filePath = '';
+
+
+  const downloadUsingAria2Promise = new Promise((resolve, reject) => {
+    let downloadUrl = '';
+    downloadPromise.then(async download => {
+      downloadUrl = download.url();
+
+      const cookies = await page.context().cookies([downloadUrl]);
+      download.cancel();
+
+      const cookieString = cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+      const referer = page.url();
+      exec(`aria2c --dir="./aria2-downloads" --header "Cookie: ${cookieString}" --header "Referer: ${referer}" "${downloadUrl}" --disable-ipv6=true | awk '/Download complete:/{print $NF}'`, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error executing aria2c: ${error}`);
+          reject(error);
+          return;
+        }
+
+        console.log(`aria2c output: ${stdout}`);
+        filePath = stdout.trim();
+        
+        if (stderr) {
+          console.error(`aria2c stderr: ${stderr}`);
+        }
+
+        resolve(filePath);
+      });
+    }).catch(error => {
+      console.log('Error while waiting for download:', error);
+      reject(error);
+    });
+  });
+
 
   let download
   try {
-    download = await downloadPromise
+    // download = await downloadPromise
+    await downloadUsingAria2Promise;
   } catch (error) {
+    console.log(error)
     console.log('There was an error while downloading the photo, Skipping...', page.url())
     return
   }
 
-  const temp = await download.path()
-  const fileName = await download.suggestedFilename()
+  const temp = filePath
+  // const fileName = await download.suggestedFilename()
+  const fileName = filePath.split('/').pop()
 
-  const metadata = await exiftool.read(temp)
+  // const metadata = await exiftool.read(temp)
+  const metadata = await exiftool.read(filePath)
 
   const date = await getMonthAndYear(metadata, page)
   const year = date.year
@@ -175,14 +222,14 @@ const downloadPhoto = async (page, overwrite = false) => {
   try {
     let path = `${downloadPath}/${year}/${month}/${fileName}`
     path = validatePath(path)
-
+    
 
     await moveFile(temp, path, { overwrite })
     console.log('Download Complete:', `${year}/${month}/${fileName}`)
   } catch (error) {
     const randomNumber = Math.floor(Math.random() * 1000000)
-    const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
-
+    // const fileName = await download.suggestedFilename().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
+    const fileName = filePath.split('/').pop().replace(/(\.[\w\d_-]+)$/i, `_${randomNumber}$1`)
     var downloadFilePath = path
 
     // check for long paths that could result in ENAMETOOLONG and truncate if necessary
@@ -192,6 +239,7 @@ const downloadPhoto = async (page, overwrite = false) => {
 
     await moveFile(temp, `${downloadFilePath}`)
     console.log('Download Complete:', `${downloadFilePath}`)
+    console.log('Download URL:', download.url())
   }
 }
 
