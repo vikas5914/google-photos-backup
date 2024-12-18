@@ -174,6 +174,9 @@ const addToCompletedDownloads = (filename, status) => {
 }
 
 const addLog = (message, type = 'default') => {
+  if (message.length > 100) {
+    message = message.substring(0, 100) + '...';
+  }
   logs.push({ message, type })
   if (logs.length > 20) {
     logs.shift()
@@ -215,7 +218,7 @@ const processQueue = async () => {
 
       addToActiveDownloads(filename.split('/').pop())
 
-      const aria2cCommand = `aria2c --dir="${downloadPath}" --header "Cookie: ${item.cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')}" --header "Referer: ${item.referer}" "${item.url}" --file-allocation=none --disable-ipv6=true`;
+      const aria2cCommand = `aria2c --dir="${downloadPath}" --header "Cookie: ${item.cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')}" --header "Referer: ${item.referer}" "${item.url}" --file-allocation=none --split=1 --disable-ipv6=true`;
       exec(aria2cCommand, async (error, stdout, stderr) => {
         activeDownloads--;
         if (error) {
